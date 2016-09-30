@@ -1,1 +1,6 @@
-{"schema": "twitter_mysql", "host": "10.0.2.2", "password": "chester", "port": 33060, "user": "twt_sel"}
+{
+"host": "127.0.0.1", 
+"user": "your_user"
+"password": "your_pwd", 
+"port": 33060 
+}

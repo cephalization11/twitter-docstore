@@ -23,10 +23,13 @@ if( len( sys.argv ) < 2 ):
 term = sys.argv[1]
 tweet_queue = Queue()
 
-# read twitter account info from a JSON file 
+# read twitter and mysql account info from a JSON file 
 # in the current dir
 cnf = open( "./twitter_auth.cnf", "r" )
 twitter_auth = json.load(cnf)
+cnf.close()
+cnf = open( "./mysql_auth.cnf", "r" )
+mysql_auth = json.load(cnf)
 cnf.close()
 
 # wraps Twitter API
@@ -67,10 +70,7 @@ class TweetWriter( Thread ):
 	# assumes a db called 'twitter_mysql'
 	# and collection exists
 	def connect( self ):
-		my_db = mysqlx.get_session( {\
-		'host': '127.0.0.1', 'port': 33060,\
-		'user': 'your_user', 'password': 'your_pwd'}\
-		).get_schema( 'twitter_mysql')
+		my_db = mysqlx.get_session( mysql_auth).get_schema( 'twitter_mysql')
 		#logging.info( 'Connecting to DB' )
 		return my_db.get_collection( self.term + '_tweets' ) 
 	
