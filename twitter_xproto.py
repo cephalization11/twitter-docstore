@@ -29,7 +29,7 @@ cnf = open( "./twitter_auth.cnf", "r" )
 twitter_auth = json.load(cnf)
 cnf.close()
 
-
+# wraps Twitter API
 class TwitterStreamer(TwythonStreamer):
 	def on_error( self, status_code, msg ):
 		logging.critical( 'Error code: ' + str( status_code) )
@@ -47,7 +47,8 @@ class TwitterStreamer(TwythonStreamer):
 	def stop( self ):
 		self.disconnect()
 
-
+# class to insert tweets to the collection. 
+# only thing MySQL-aware
 class TweetWriter( Thread ):
 
 	def __init__( self, queue, search_term ):
@@ -63,10 +64,12 @@ class TweetWriter( Thread ):
 		db.add( tweet ).execute()
 		self.inserts += 1
 
+	# assumes a db called 'twitter_mysql'
+	# and collection exists
 	def connect( self ):
 		my_db = mysqlx.get_session( {\
-		'host': '10.0.2.2', 'port': 33060,\
-		'user': 'twt_sel', 'password': 'chester'}\
+		'host': '127.0.0.1', 'port': 33060,\
+		'user': 'your_user', 'password': 'your_pwd'}\
 		).get_schema( 'twitter_mysql')
 		#logging.info( 'Connecting to DB' )
 		return my_db.get_collection( self.term + '_tweets' ) 
@@ -94,6 +97,7 @@ twy = TwitterStreamer( app_key = twitter_auth['consumer_key'], \
 	oauth_token = twitter_auth['access_token_key'], \
 	oauth_token_secret= twitter_auth['access_token_secret']) 
 
+# stay in process
 twy.daemon = False
 w1 = TweetWriter(tweet_queue, term )
 w2 = TweetWriter(tweet_queue, term )
@@ -109,6 +113,9 @@ except KeyboardInterrupt:
 	w2.stop()
 
 logging.info( 'All done' )
+
+# dump unprocessed tweets to a text file (overwrite)
+# TODO look for and load file on startup
 if( tweet_queue.qsize() > 0 ):
 	logging.warning( "Queue size at %d", tweet_queue.qsize() )
 	with open( "./tweets.txt", "w" ) as outfile:
