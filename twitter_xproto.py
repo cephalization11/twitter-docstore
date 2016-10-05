@@ -7,6 +7,7 @@ import sys
 import json
 import logging
 from twython import TwythonStreamer
+from requests.exceptions import ChunkedEncodingError
 from Queue import Queue 
 from threading import Thread
 from time import sleep
@@ -43,10 +44,21 @@ class TwitterStreamer(TwythonStreamer):
 		tweet_queue.put( tweet )
 		return True
 
+	# need to break and handle buffer overload (ChunkedEncodingError)
 	def start( self): # was __call__ for the thread...
-		logging.info( 'Starting stream' )
-		self.statuses.filter( track = term )
-
+		running = True
+		while running:
+			try:
+				logging.info( 'Starting stream' )
+				self.statuses.filter( track = term )
+			except ChunkedEncodingError as e:
+				logging.critical( 'Stream backed up' )
+				logging.critical( str( e ) )
+				continue
+			except KeyboardInterrupt:
+				running = False
+				raise
+	
 	def stop( self ):
 		self.disconnect()
 
