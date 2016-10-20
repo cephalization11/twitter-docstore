@@ -83,8 +83,8 @@ class TweetWriter( Thread ):
 	# and collection exists
 	def connect( self ):
 		my_db = mysqlx.get_session( mysql_auth).get_schema( 'twitter_mysql')
-		#logging.info( 'Connecting to DB' )
-		return my_db.get_collection( self.term + '_tweets' ) 
+		# create (or get, if exists) the Collection
+		return my_db.create_collection( self.term + '_tweets', reuse = True )  
 	
 	def stop( self ):
 		self.running = False
