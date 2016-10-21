@@ -9,7 +9,7 @@ import logging
 
 #logging level
 # Levels: CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
-logging.basicConfig( level = 'INFO' )
+logging.basicConfig( level = 'DEBUG' )
 
 
 # only command-line arg is the search term ('mysql', usually)
@@ -19,6 +19,39 @@ if( len( sys.argv ) < 2 ):
 
 # GLOBALS - for now
 term = sys.argv[1]
-tweets = term + '_tweets'
+tweets_collection = term + '_tweets'
 SCHEMA_NAME = 'twitter_mysql'
+PREPEND_TERM = True
 
+cnf = open( "./mysql_auth.cnf", "r" )
+mysql_auth = json.load(cnf)
+cnf.close()
+
+def add_date_column( session ):
+	node_session = session
+	sql = ('ALTER TABLE ' + SCHEMA_NAME + '.' + tweets_collection +
+	' ADD created_at DATETIME AS ( STR_TO_DATE(doc->>"$.created_at", \'%a %b %d %H:%i:%s +0000 %Y\') ),' 
+	' ADD INDEX dt_idx(created_at);') 
+	logging.debug( sql )
+	node_session.sql( sql ).execute()
+
+def create_user_collection(session): 
+	node_session = session
+	user_collection_name = 'users'
+	if( PREPEND_TERM ):
+		user_collection_name = term + '_' + user_collection_name
+	user_collection = node_session.get_schema( SCHEMA_NAME).create_collection( user_collection_name )
+	user_sql = 'ALTER TABLE ' # add unique key and user_id 
+	sql = ('ALTER TABLE ' + SCHEMA_NAME + '.' + tweets_collection +
+	' ADD user_id bigint(20) UNSIGNED, ADD INDEX usr_inx( user_id )' )
+	logging.debug( sql )
+	node_session.sql( sql ).execute()
+	# for user in tweets_collection do... ignore duplicate key warnings on User table	
+
+
+
+ns = mysqlx.get_node_session( mysql_auth)
+add_date_column(ns)
+create_user_collection(ns)
+
+	
