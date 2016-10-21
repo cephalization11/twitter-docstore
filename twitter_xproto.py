@@ -13,10 +13,9 @@ from threading import Thread
 from time import sleep
 
 #logging level
+# Levels: CRITICAL, ERROR, WARNING, INFO, DEBUG, NOTSET
 logging.basicConfig( level = 'INFO' )
 
-# How long to pause if we get "too many request" messages
-PAUSE_SECS = 5
 
 # only command-line arg is the search term ('mysql', usually)
 if( len( sys.argv ) < 2 ):
@@ -25,6 +24,9 @@ if( len( sys.argv ) < 2 ):
 
 # GLOBALS - for now
 term = sys.argv[1]
+# How long to pause if we get "too many request" messages
+PAUSE_SECS = 10
+SCHEMA_NAME = 'twitter_mysql'
 tweet_queue = Queue()
 
 # read twitter and mysql account info from a JSON file 
@@ -39,10 +41,10 @@ cnf.close()
 # wraps Twitter API
 class TwitterStreamer(TwythonStreamer):
 	def on_error( self, status_code, msg ):
-		logging.critical( 'Error code: ' + str( status_code) )
-		logging.critical( str( msg ) )
+		logging.error( 'Error code: ' + str( status_code) )
+		logging.error( str( msg ) )
 		if( status_code == 420 ):
-			logging.warning( "Pausing for " + PAUSE_SECS + ' to let Twitter relax' )
+			logging.warning( "Pausing for " + str( PAUSE_SECS ) + ' seconds to let Twitter relax' )
 			sleep( PAUSE_SECS )
 		return False
 
@@ -68,6 +70,8 @@ class TwitterStreamer(TwythonStreamer):
 	def stop( self ):
 		self.disconnect()
 
+# END TwitterStreamer
+
 # class to insert tweets to the collection. 
 # only thing MySQL-aware
 class TweetWriter( Thread ):
@@ -80,7 +84,6 @@ class TweetWriter( Thread ):
 		self.inserts = 0
 		self.running = True
 		self.collection = self.connect()
-		self.collection.create_index( 'unique_id', True )
 
 	def insert( self, tweet_batch ):
 		for t in tweet_batch:
@@ -88,38 +91,33 @@ class TweetWriter( Thread ):
 				self.collection.add( t ).execute()
 			except mysqlx.errors.OperationalError as op:
 				# I believe the only cause for this is duplicate key 
-				logging.info( 'Duplicate key: ' + str( op.args ) + ': ' + str( t[u'id']) )
-				old = self.collection.find( ':tweet_id = id' ).bind( 'tweet_id', t[u'id'] ).execute()
-				logging.warning( 'Equal? '+ "\n" +  str( old.fetch_all()[0][u'id'] ) + "\n" + str( t[u'id'] ) )
 				self.collection.remove( ':tweet_id = id' ).bind( 'tweet_id', t[u'id'] ).execute()
-				# could these clash again given the asynchronicity?
 				self.collection.add( t )
-				logging.info( "Added: " + str( t[u'id'] ) )
+			logging.info( ' @' + t[u'user'][u'screen_name'] + ': ' + t[u'text']  )
 	
-	# assumes a db called 'twitter_mysql'
+	# assumes a db called $SCHEMA_NAME (see above)
 	def connect( self ):
-		logging.info( self.name + " IN Connect" )
 		col_name = self.term + '_tweets'
 		session = mysqlx.get_session( mysql_auth)
-		my_db = session.get_schema( 'twitter_mysql')
-		# create (or get, if exists) the Collection
+		my_db = session.get_schema( SCHEMA_NAME )
+		# Get (or create, if necessary) the Collection
 		try:
 			col = my_db.get_collection( col_name, check_existence = True ) 
 		except mysqlx.errors.ProgrammingError:
-			logging.info( "Need to create table" )
+			logging.info( "Need to create Collection " + col_name )
 			col = my_db.create_collection( col_name )
 			# only a NodeSession can execute SQL
 			node_session = mysqlx.get_node_session( mysql_auth)
-			node_session.sql( 'alter table twitter_mysql.' + col_name + ' ADD tweet_id bigint unsigned GENERATED ALWAYS AS ( doc->>"$.id" ), ADD UNIQUE INDEX id_uniq(tweet_id);' ).execute()
+			node_session.sql( 'alter table ' + SCHEMA_NAME + '.' + col_name + ' ADD tweet_id bigint unsigned GENERATED ALWAYS AS ( doc->>"$.id" ), ADD UNIQUE INDEX id_uniq(tweet_id);' ).execute()
 		return col
 	
 	def stop( self ):
 		self.running = False
-		logging.info( "Thread %s ending", self.name )
+		logging.debug( "Thread %s ending", self.name )
 		logging.info( "Inserted %d tweets", self.inserts )
 	
 	def run( self ):
-		logging.info( "TweetWriter %s starting", self.name ) 
+		logging.debug( "TweetWriter %s starting", self.name ) 
 		while self.running == True:
 			if( self.tweet_queue.empty() != True ):
 				tweet_batch = []
@@ -127,15 +125,13 @@ class TweetWriter( Thread ):
 				tweet_batch.append( tweet )
 				if( tweet.has_key( u'retweeted_status' ) ):
 					tweet_batch.append( tweet[u'retweeted_status'] )
-					logging.info( "Booyah: "+ tweet[u'retweeted_status'][u'text'] +  str( tweet[u'retweeted_status'][u'retweeted'] ) )
+					logging.debug( "RETWEET: "+ tweet[u'retweeted_status'][u'text'] + ' count ' + str( tweet[u'retweet_count'] ) )
 				self.insert( tweet_batch )
 				self.inserts += len( tweet_batch )
 				self.tweet_queue.task_done()
-				for t in tweet_batch:
-					logging.info( ' @' + t[u'user'][u'screen_name'] + ': ' + t[u'text']  )
 			else:
 				sleep(5)
-
+# END TweetWriter
 
 # connect to twitter
 twy = TwitterStreamer( app_key = twitter_auth['consumer_key'], \
@@ -163,11 +159,14 @@ logging.info( 'All done' )
 # dump unprocessed tweets to a text file (overwrite)
 # TODO look for and load file on startup
 if( tweet_queue.qsize() > 0 ):
-	logging.warning( "Queue size at %d", tweet_queue.qsize() )
-	with open( "./tweets.txt", "w" ) as outfile:
+	outfile_name = './tweets.txt'
+	qs = tweet_queue.qsize()
+	logging.debug( "Queue size at %d", qs )
+	with open( outfile_name, "w" ) as outfile:
 		while not tweet_queue.empty():
 			json.dump( tweet_queue.get(), outfile )
 			outfile.write( "\n" )
 		outfile.close()
+		logging.warning( "Queue not empty. Wrote out %d lines to %s", qs, outfile_name )
 
 sys.exit(0)
