@@ -8,11 +8,13 @@ use twitter_mysql
 
 -- using the collection 'mysql_tweets', find all tweets with the hashtag 'MySQL'
 -- returns a result set of Arrays of JSON objects (the hashtag sets for each tweet)
-SELECT doc->"$.id", doc->"$.entities.hashtags" 
+SELECT doc->"$.id", doc->"$.entities.hashtags[*].text" 
 FROM  mysql_tweets 
 WHERE json_search( doc, 'all', "MySQL", NULL, "$.entities.hashtags" ) IS NOT NULL;
 
 -- how many tweets have Coordinates (geo data)?
 SELECT count(*) with_coordinates,  CONCAT( ( count(*)/(select count(*) FROM mysql_tweets))*100, '%') perc_of_tweets  FROM mysql_tweets WHERE doc->"$.coordinates" NOT LIKE 'null';
 
+-- how many tweets have the hashtag 'MySQL'?
+SELECT count(*) FROM  mysql_tweets  WHERE json_search( doc, 'all', "MySQL", NULL, "$.entities.hashtags" ) IS NOT NULL;
 

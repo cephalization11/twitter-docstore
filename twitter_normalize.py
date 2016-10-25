@@ -35,23 +35,26 @@ def add_date_column( session ):
 	logging.debug( sql )
 	node_session.sql( sql ).execute()
 
-def create_user_collection(session): 
+# Takes way longer, needs to be updated!
+def add_user_column(session): 
 	node_session = session
 	user_collection_name = 'users'
 	if( PREPEND_TERM ):
 		user_collection_name = term + '_' + user_collection_name
-	user_collection = node_session.get_schema( SCHEMA_NAME).create_collection( user_collection_name )
-	user_sql = 'ALTER TABLE ' # add unique key and user_id 
+	#user_collection = node_session.get_schema( SCHEMA_NAME).create_collection( user_collection_name )
+	user_sql = 'UPDATE ' + SCHEMA_NAME + '.' + tweets_collection + ' set user_id = CAST(doc->>\"$.user.id\" AS UNSIGNED)'
 	sql = ('ALTER TABLE ' + SCHEMA_NAME + '.' + tweets_collection +
 	' ADD user_id bigint(20) UNSIGNED, ADD INDEX usr_inx( user_id )' )
 	logging.debug( sql )
 	node_session.sql( sql ).execute()
+	logging.debug( user_sql )
+	node_session.sql( user_sql ).execute()
 	# for user in tweets_collection do... ignore duplicate key warnings on User table	
 
 
 
 ns = mysqlx.get_node_session( mysql_auth)
 add_date_column(ns)
-create_user_collection(ns)
+add_user_column(ns)
 
 	

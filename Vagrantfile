@@ -65,12 +65,12 @@ Vagrant.configure(2) do |config|
   # Puppet, Chef, Ansible, Salt, and Docker are also available. Please see the
   # documentation for more information about their specific syntax and use.
   config.vm.provision "shell", inline: <<-SHELL
-     sudo apt-get update
-     sudo apt-get install -y vim git python python-pip wget
+     apt-get update
+     apt-get install -y vim git python python-pip wget
      wget https://github.com/google/protobuf/releases/download/v3.0.0/protobuf-python-3.0.0.tar.gz
-     tar xzvf ./protobuf-python-3.0.0.tar.gz;cd protobuf-3.0.0;./configure;sudo make install
-     cd python;sudo python ./setup.py install
+     tar xzvf ./protobuf-python-3.0.0.tar.gz;cd protobuf-3.0.0;./configure;make install
+     cd python;python ./setup.py install
      sudo pip install twython
-     cd;git clone https://github.com/pantoniades/twitter-docstore.git
+     sudo -u vagrant `cd;git clone https://github.com/pantoniades/twitter-docstore.git`
   SHELL
 end
