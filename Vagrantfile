@@ -71,6 +71,7 @@ Vagrant.configure(2) do |config|
      tar xzvf ./protobuf-python-3.0.0.tar.gz;cd protobuf-3.0.0;./configure;make install
      cd python;python ./setup.py install
      sudo pip install twython
-     sudo -u vagrant `cd;git clone https://github.com/pantoniades/twitter-docstore.git`
+     tar xzvf /vagrant/mysql-connector-python-2.2.1.tar.gz
+     cd mysql-connector-python-2.2.1/;python ./setup.py install
   SHELL
 end
