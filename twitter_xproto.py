@@ -90,7 +90,6 @@ class TweetWriter( Thread ):
 			try:
 				self.collection.add( t ).execute()
 			except mysqlx.errors.OperationalError as op:
-				# I believe the only cause for this is duplicate key 
 				self.collection.remove( ':tweet_id = id' ).bind( 'tweet_id', t[u'id'] ).execute()
 				self.collection.add( t )
 			logging.info( ' @' + t[u'user'][u'screen_name'] + ': ' + t[u'text']  )
